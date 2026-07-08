@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Michelle – AI Booking Assistant</title>
+  <style>
+    :root {
+      --bg: #0f0f1a;
+      --surface: #1a1a2e;
+      --surface2: #16213e;
+      --accent: #6c63ff;
+      --accent2: #a78bfa;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --success: #34d399;
+      --danger: #f87171;
+      --border: rgba(108, 99, 255, 0.25);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      width: 100%;
+      padding: 20px 32px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .avatar-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 0 20px rgba(108, 99, 255, 0.4);
+    }
+
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p  { font-size: 0.85rem; color: var(--text-muted); }
+
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--success);
+      margin-left: auto;
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
+    }
+    .status-dot.disconnected { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    main {
+      width: 100%;
+      max-width: 860px;
+      padding: 32px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Conversation ─────────────────────────────── */
+    #conversation {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      min-height: 300px;
+      max-height: 420px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .msg {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+    .msg-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .msg.michelle .msg-avatar { background: linear-gradient(135deg,var(--accent),var(--accent2)); }
+    .msg.user     .msg-avatar { background: var(--surface2); border: 1px solid var(--border); }
+    .msg.user { flex-direction: row-reverse; }
+
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      max-width: 75%;
+    }
+    .msg.michelle .msg-bubble { background: var(--surface2); border: 1px solid var(--border); }
+    .msg.user     .msg-bubble { background: var(--accent); color: #fff; }
+
+    .placeholder {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin: auto;
+    }
+
+    /* ── Transcript / live ────────────────────────── */
+    #transcript-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      min-height: 52px;
+      transition: border-color 0.2s;
+    }
+    #transcript-box.active {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    /* ── Controls ─────────────────────────────────── */
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    #mic-btn {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      cursor: pointer;
+      font-size: 28px;
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(108,99,255,0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+      flex-shrink: 0;
+    }
+    #mic-btn:hover  { transform: scale(1.06); box-shadow: 0 6px 28px rgba(108,99,255,0.6); }
+    #mic-btn.recording {
+      background: linear-gradient(135deg, var(--danger), #fb7185);
+      box-shadow: 0 4px 20px rgba(248,113,113,0.5);
+      animation: micPulse 1s infinite;
+    }
+    @keyframes micPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+    #mic-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; animation: none; }
+
+    .text-controls { flex: 1; display: flex; gap: 8px; }
+    #text-input {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #text-input:focus { border-color: var(--accent); }
+    #text-input::placeholder { color: var(--text-muted); }
+
+    #send-btn {
+      padding: 12px 20px;
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #send-btn:hover:not(:disabled) { background: var(--accent2); transform: scale(1.02); }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Booking Panel ────────────────────────────── */
+    #booking-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      display: none;
+    }
+    #booking-panel.visible { display: block; }
+    #booking-panel h2 { font-size: 1rem; margin-bottom: 16px; color: var(--accent2); }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media(max-width:560px){ .form-grid{ grid-template-columns:1fr; } }
+
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-group input, .form-group select {
+      padding: 9px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+
+    .booking-actions { display: flex; gap: 10px; margin-top: 16px; }
+    #confirm-booking-btn {
+      flex: 1;
+      padding: 11px;
+      background: var(--success);
+      border: none;
+      border-radius: 10px;
+      color: #0f0f1a;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    #confirm-booking-btn:hover { opacity: 0.85; }
+    #cancel-booking-btn {
+      padding: 11px 18px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    #cancel-booking-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+    /* ── Audio player ─────────────────────────────── */
+    #audio-section {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+    }
+    #audio-section.visible { display: flex; }
+    #audio-section span { font-size: 0.85rem; color: var(--text-muted); }
+    audio { flex: 1; height: 36px; }
+    audio::-webkit-media-controls-panel { background: var(--surface2); }
+
+    /* ── Toast ────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 22px;
+      font-size: 0.88rem;
+      color: var(--text);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transition: transform 0.3s ease;
+      z-index: 100;
+      pointer-events: none;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="avatar-icon">🤖</div>
+  <div>
+    <h1>Michelle</h1>
+    <p>AI Booking Assistant</p>
+  </div>
+  <div id="status-dot" class="status-dot disconnected" title="Checking server…"></div>
+</header>
+
+<main>
+
+  <!-- Conversation feed -->
+  <div id="conversation">
+    <div class="placeholder" id="conv-placeholder">
+      Start a conversation — press the mic button or type a message below.
+    </div>
+  </div>
+
+  <!-- Live transcript -->
+  <div id="transcript-box">🎙️ Press the microphone to start speaking…</div>
+
+  <!-- Audio player -->
+  <div id="audio-section">
+    <span>🔊 Michelle says:</span>
+    <audio id="response-audio" controls></audio>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button id="mic-btn" title="Hold to record">🎤</button>
+    <div class="text-controls">
+      <input id="text-input" type="text" placeholder="Or type a message and press Send…" />
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+
+  <!-- Booking form -->
+  <div id="booking-panel">
+    <h2>📅 Confirm Booking Details</h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Your Name</label>
+        <input id="b-name" type="text" placeholder="Jane Smith" />
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input id="b-email" type="email" placeholder="jane@example.com" />
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input id="b-date" type="date" />
+      </div>
+      <div class="form-group">
+        <label>Time</label>
+        <input id="b-time" type="time" />
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Service / Notes</label>
+        <input id="b-service" type="text" placeholder="e.g. Consultation, Follow-up…" />
+      </div>
+    </div>
+    <div class="booking-actions">
+      <button id="confirm-booking-btn">✅ Confirm Booking</button>
+      <button id="cancel-booking-btn">Cancel</button>
+    </div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────────────────
+const API = '';   // same origin
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let isRecording = false;
+let mediaRecorder = null;
+let audioChunks = [];
+let conversationHistory = [];
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const micBtn         = document.getElementById('mic-btn');
+const sendBtn        = document.getElementById('send-btn');
+const textInput      = document.getElementById('text-input');
+const transcriptBox  = document.getElementById('transcript-box');
+const conversation   = document.getElementById('conversation');
+const placeholder    = document.getElementById('conv-placeholder');
+const audioSection   = document.getElementById('audio-section');
+const responseAudio  = document.getElementById('response-audio');
+const bookingPanel   = document.getElementById('booking-panel');
+const statusDot      = document.getElementById('status-dot');
+const toast          = document.getElementById('toast');
+
+// ─── Health check ─────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const res = await fetch(`${API}/api/health`);
+    const data = await res.json();
+    statusDot.className = 'status-dot';
+    statusDot.title = `Azure: ${data.azureConnected ? '✅' : '❌'} | Gemini: ${data.geminiConnected ? '✅' : '❌'}`;
+  } catch {
+    statusDot.className = 'status-dot disconnected';
+    statusDot.title = 'Server unreachable';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 30000);
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function showToast(msg, duration = 3000) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// ─── Conversation helpers ──────────────────────────────────────────────────────
+function addMessage(role, text) {
+  if (placeholder) placeholder.remove();
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${role === 'michelle' ? '🤖' : '👤'}</div>
+    <div class="msg-bubble">${escapeHtml(text)}</div>`;
+  conversation.appendChild(div);
+  conversation.scrollTop = conversation.scrollHeight;
+
+  conversationHistory.push({ role: role === 'michelle' ? 'model' : 'user', content: text });
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Check for booking intent in AI response ──────────────────────────────────
+function detectBookingIntent(text) {
+  const keywords = ['book', 'appointment', 'schedule', 'confirm', 'tuesday', 'monday',
+                    'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'tomorrow',
+                    'next week', 'at 1', 'at 2', 'at 3', 'at 4', 'at 5', 'am', 'pm'];
+  const lower = text.toLowerCase();
+  return keywords.filter(k => lower.includes(k)).length >= 2;
+}
+
+function prefillBookingForm(text) {
+  // Simple date/time extraction
+  const dateMatch = text.match(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)\b/i);
+  const timeMatch = text.match(/\b(\d{1,2}(?::\d{2})?\s*(?:am|pm))\b/i);
+
+  if (dateMatch) {
+    const dayName = dateMatch[1].toLowerCase();
+    const today = new Date();
+    const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const targetDay = days.indexOf(dayName);
+    if (targetDay !== -1) {
+      const diff = (targetDay - today.getDay() + 7) % 7 || 7;
+      const target = new Date(today);
+      target.setDate(today.getDate() + diff);
+      document.getElementById('b-date').value = target.toISOString().split('T')[0];
+    } else if (dayName === 'tomorrow') {
+      const tmr = new Date(today);
+      tmr.setDate(today.getDate() + 1);
+      document.getElementById('b-date').value = tmr.toISOString().split('T')[0];
+    } else if (dayName === 'today') {
+      document.getElementById('b-date').value = today.toISOString().split('T')[0];
+    }
+  }
+
+  if (timeMatch) {
+    const raw = timeMatch[1].replace(/\s/g, '').toLowerCase();
+    const isPm = raw.endsWith('pm');
+    const parts = raw.replace(/am|pm/, '').split(':');
+    let h = parseInt(parts[0], 10);
+    const m = parts[1] ? parseInt(parts[1], 10) : 0;
+    if (isPm && h !== 12) h += 12;
+    if (!isPm && h === 12) h = 0;
+    document.getElementById('b-time').value = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+}
+
+// ─── Play audio from base64 ───────────────────────────────────────────────────
+function playAudioBase64(base64, mimeType = 'audio/mpeg') {
+  const blob = base64ToBlob(base64, mimeType);
+  const url = URL.createObjectURL(blob);
+  responseAudio.src = url;
+  audioSection.classList.add('visible');
+  responseAudio.play().catch(() => {});
+}
+
+function base64ToBlob(base64, mimeType) {
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mimeType });
+}
+
+// ─── Mic recording ────────────────────────────────────────────────────────────
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+    mediaRecorder.addEventListener('dataavailable', e => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    });
+
+    mediaRecorder.addEventListener('stop', async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      await processVoiceInput(audioBlob);
+    });
+
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹️';
+    transcriptBox.textContent = '🎙️ Recording… press again to stop.';
+    transcriptBox.classList.add('active');
+  } catch (err) {
+    showToast('⚠️ Microphone access denied or unavailable');
+    console.error('Mic error:', err);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  micBtn.textContent = '🎤';
+  transcriptBox.textContent = '⏳ Processing…';
+}
+
+micBtn.addEventListener('click', () => {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+});
+
+// ─── Voice pipeline: send audio → get transcript + AI response + audio ────────
+async function processVoiceInput(audioBlob) {
+  micBtn.disabled = true;
+  sendBtn.disabled = true;
+
+  try {
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const response = await fetch(`${API}/api/voice/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/webm' },
+      body: arrayBuffer
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      transcriptBox.textContent = '❌ ' + (data.error || 'Could not process audio');
+      transcriptBox.classList.remove('active');
+      showToast('Could not understand audio. Try again.');
+      return;
+    }
+
+    transcriptBox.textContent = `📝 You said: "${data.transcript}"`;
+    transcriptBox.classList.add('active');
+
+    addMessage('user', data.transcript);
+    addMessage('michelle', data.response);
+
+    if (data.audio) {
+      playAudioBase64(data.audio, data.audioMimeType || 'audio/mpeg');
+    }
+
+    // Show booking form if user seems to want a booking
+    if (detectBookingIntent(data.transcript)) {
+      prefillBookingForm(data.transcript);
+      bookingPanel.classList.add('visible');
+    }
+
+  } catch (err) {
+    console.error('Voice process error:', err);
+    transcriptBox.textContent = '❌ Network error – is the server running?';
+    transcriptBox.classList.remove('active');
+    showToast('Network error');
+  } finally {
+    micBtn.disabled = false;
+    sendBtn.disabled = false;
+  }
+}
+
+// ─── Text chat ────────────────────────────────────────────────────────────────
+async function sendTextMessage() {
+  const message = textInput.value.trim();
+  if (!message) return;
+
+  textInput.value = '';
+  sendBtn.disabled = true;
+  addMessage('user', message);
+  transcriptBox.textContent = `💬 "${message}"`;
+  transcriptBox.classList.add('active');
+
+  try {
+    const response = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history: conversationHistory.slice(0, -1) })
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      showToast('AI error: ' + data.error);
+      return;
+    }
+
+    addMessage('michelle', data.response);
+
+    // Also synthesize + play the response
+    try {
+      const synthRes = await fetch(`${API}/api/speech/synthesize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: data.response })
+      });
+      if (synthRes.ok) {
+        const audioBuf = await synthRes.arrayBuffer();
+        const blob = new Blob([audioBuf], { type: 'audio/mpeg' });
+        responseAudio.src = URL.createObjectURL(blob);
+        audioSection.classList.add('visible');
+        responseAudio.play().catch(() => {});
+      }
+    } catch { /* audio playback optional */ }
+
+    if (detectBookingIntent(message)) {
+      prefillBookingForm(message);
+      bookingPanel.classList.add('visible');
+    }
+
+  } catch (err) {
+    console.error('Chat error:', err);
+    showToast('Network error');
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+sendBtn.addEventListener('click', sendTextMessage);
+textInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendTextMessage(); });
+
+// ─── Booking form ─────────────────────────────────────────────────────────────
+document.getElementById('confirm-booking-btn').addEventListener('click', async () => {
+  const name    = document.getElementById('b-name').value.trim();
+  const email   = document.getElementById('b-email').value.trim();
+  const date    = document.getElementById('b-date').value;
+  const time    = document.getElementById('b-time').value;
+  const service = document.getElementById('b-service').value.trim();
+
+  if (!name || !date || !time) {
+    showToast('Please fill in Name, Date and Time');
+    return;
+  }
+
+  const confirmBtn = document.getElementById('confirm-booking-btn');
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = '⏳ Confirming…';
+
+  try {
+    const res = await fetch(`${API}/api/bookings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, date, time, service })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      const msg = `✅ Booking confirmed! ID: ${data.booking.id}` +
+                  (data.emailSent ? ' — Confirmation email sent!' : '');
+      addMessage('michelle', msg);
+      showToast('🎉 Booking confirmed!', 4000);
+      bookingPanel.classList.remove('visible');
+
+      // Speak the confirmation
+      fetch(`${API}/api/speech/synthesize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: `Your booking for ${date} at ${time} is confirmed! Booking ID ${data.booking.id}.` })
+      }).then(r => r.ok ? r.arrayBuffer() : null).then(buf => {
+        if (!buf) return;
+        const blob = new Blob([buf], { type: 'audio/mpeg' });
+        responseAudio.src = URL.createObjectURL(blob);
+        audioSection.classList.add('visible');
+        responseAudio.play().catch(() => {});
+      }).catch(() => {});
+    } else {
+      showToast('Booking failed: ' + data.error);
+    }
+  } catch (err) {
+    showToast('Network error');
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = '✅ Confirm Booking';
+  }
+});
+
+document.getElementById('cancel-booking-btn').addEventListener('click', () => {
+  bookingPanel.classList.remove('visible');
+});
+
+// ─── Greeting ─────────────────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  const greeting = "Hi! I'm Michelle, your AI booking assistant. How can I help you today?";
+  addMessage('michelle', greeting);
+
+  try {
+    const synthRes = await fetch(`${API}/api/speech/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: greeting })
+    });
+    if (synthRes.ok) {
+      const buf = await synthRes.arrayBuffer();
+      const blob = new Blob([buf], { type: 'audio/mpeg' });
+      responseAudio.src = URL.createObjectURL(blob);
+      audioSection.classList.add('visible');
+    }
+  } catch { /* greeting audio is optional */ }
+});
+</script>
+</body>
+</html>
