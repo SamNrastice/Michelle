@@ -465,8 +465,8 @@ function prefillBookingForm(text) {
     const parts = raw.replace(/am|pm/, '').split(':');
     let h = parseInt(parts[0], 10);
     const m = parts[1] ? parseInt(parts[1], 10) : 0;
-    // Validate 12-hour range
-    if (isNaN(h) || h < 1 || h > 12) {
+    // Validate hour range and minutes
+    if (isNaN(h) || h < 1 || h > 12 || isNaN(m) || m < 0 || m > 59) {
       showToast('⚠️ Could not parse the time from your message — please set it manually.');
       return;
     }

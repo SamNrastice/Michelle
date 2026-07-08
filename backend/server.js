@@ -278,7 +278,7 @@ app.post('/api/chat', apiLimiter, async (req, res) => {
             return res.status(400).json({ success: false, error: 'No message provided' });
         }
 
-        console.log(`💬 Chat message: "${message.substring(0, LOG_PREVIEW_LENGTH)}"`);
+        console.log(`💬 Chat message: "${message.length > LOG_PREVIEW_LENGTH ? message.substring(0, LOG_PREVIEW_LENGTH) + '...' : message}"`);
         const response = await getGeminiResponse(message, Array.isArray(history) ? history : []);
         console.log(`🤖 Michelle: "${response.length > LOG_PREVIEW_LENGTH ? response.substring(0, LOG_PREVIEW_LENGTH) + '...' : response}"`);
 
@@ -314,7 +314,7 @@ app.post('/api/voice/process', voiceLimiter, async (req, res) => {
         }
 
         const transcript = sttResult.text;
-        console.log(`✅ Transcript: "${transcript.substring(0, LOG_PREVIEW_LENGTH)}"`);
+        console.log(`✅ Transcript: "${transcript.length > LOG_PREVIEW_LENGTH ? transcript.substring(0, LOG_PREVIEW_LENGTH) + '...' : transcript}"`);
 
         // Step 2: Gemini AI response
         console.log('🤖 Getting Gemini response...');
