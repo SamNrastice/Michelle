@@ -5,6 +5,7 @@ const path = require('path');
 const sdk = require('microsoft-cognitiveservices-speech-sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const nodemailer = require('nodemailer');
+const rateLimit = require('express-rate-limit');
 
 // Load environment variables
 dotenv.config();
@@ -12,11 +13,31 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Log preview length for console messages
+const LOG_PREVIEW_LENGTH = 80;
+
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.raw({ type: 'audio/*', limit: '50mb' }));
+
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Too many requests, please try again later.' }
+});
+
+const voiceLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Too many voice requests, please try again shortly.' }
+});
 
 // ─── Azure Speech Services Configuration ────────────────────────────────────
 function createSpeechConfig() {
@@ -61,7 +82,7 @@ const bookings = [];
 function createMailTransport() {
     return nodemailer.createTransport({
         host: process.env.MAILTRAP_HOST || 'sandbox.smtp.mailtrap.io',
-        port: parseInt(process.env.MAILTRAP_PORT) || 2525,
+        port: parseInt(process.env.MAILTRAP_PORT, 10) || 2525,
         auth: {
             user: process.env.MAILTRAP_USER,
             pass: process.env.MAILTRAP_PASS
@@ -189,12 +210,12 @@ async function getGeminiResponse(userMessage, conversationHistory = []) {
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
-app.get('/', (req, res) => {
+app.get('/', apiLimiter, (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', apiLimiter, (req, res) => {
     res.json({
         status: 'healthy',
         message: 'Michelle Avatar is running',
@@ -206,11 +227,11 @@ app.get('/api/health', (req, res) => {
 });
 
 // Speech-to-Text: receives raw audio, returns recognized text
-app.post('/api/speech/recognize', async (req, res) => {
+app.post('/api/speech/recognize', voiceLimiter, async (req, res) => {
     try {
         const audioBuffer = req.body;
 
-        if (!audioBuffer || audioBuffer.length === 0) {
+        if (!Buffer.isBuffer(audioBuffer) || audioBuffer.length === 0) {
             return res.status(400).json({ success: false, error: 'No audio data received' });
         }
 
@@ -225,15 +246,15 @@ app.post('/api/speech/recognize', async (req, res) => {
 });
 
 // Text-to-Speech: receives text, returns MP3 audio bytes
-app.post('/api/speech/synthesize', async (req, res) => {
+app.post('/api/speech/synthesize', apiLimiter, async (req, res) => {
     try {
         const { text } = req.body;
 
-        if (!text || text.trim().length === 0) {
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
             return res.status(400).json({ success: false, error: 'No text provided' });
         }
 
-        console.log(`🔊 Synthesizing: "${text.substring(0, 80)}..."`);
+        console.log(`🔊 Synthesizing: "${text.substring(0, LOG_PREVIEW_LENGTH)}..."`);
         const audioBuffer = await synthesizeSpeechToBuffer(text);
 
         res.set('Content-Type', 'audio/mpeg');
@@ -246,17 +267,17 @@ app.post('/api/speech/synthesize', async (req, res) => {
 });
 
 // Chat: text in, AI text response out
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', apiLimiter, async (req, res) => {
     try {
         const { message, history = [] } = req.body;
 
-        if (!message || message.trim().length === 0) {
+        if (!message || typeof message !== 'string' || message.trim().length === 0) {
             return res.status(400).json({ success: false, error: 'No message provided' });
         }
 
-        console.log(`💬 Chat message: "${message}"`);
-        const response = await getGeminiResponse(message, history);
-        console.log(`🤖 Michelle: "${response.substring(0, 80)}..."`);
+        console.log(`💬 Chat message: "${message.substring(0, LOG_PREVIEW_LENGTH)}"`);
+        const response = await getGeminiResponse(message, Array.isArray(history) ? history : []);
+        console.log(`🤖 Michelle: "${response.substring(0, LOG_PREVIEW_LENGTH)}..."`);
 
         res.json({ success: true, response });
     } catch (error) {
@@ -266,11 +287,11 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Full voice pipeline: audio in → STT → Gemini → TTS → audio out
-app.post('/api/voice/process', async (req, res) => {
+app.post('/api/voice/process', voiceLimiter, async (req, res) => {
     try {
         const audioBuffer = req.body;
 
-        if (!audioBuffer || audioBuffer.length === 0) {
+        if (!Buffer.isBuffer(audioBuffer) || audioBuffer.length === 0) {
             return res.status(400).json({ success: false, error: 'No audio data received' });
         }
 
@@ -287,12 +308,12 @@ app.post('/api/voice/process', async (req, res) => {
         }
 
         const transcript = sttResult.text;
-        console.log(`✅ Transcript: "${transcript}"`);
+        console.log(`✅ Transcript: "${transcript.substring(0, LOG_PREVIEW_LENGTH)}"`);
 
         // Step 2: Gemini AI response
         console.log('🤖 Getting Gemini response...');
         const aiResponse = await getGeminiResponse(transcript);
-        console.log(`🤖 Michelle: "${aiResponse.substring(0, 80)}..."`);
+        console.log(`🤖 Michelle: "${aiResponse.substring(0, LOG_PREVIEW_LENGTH)}..."`);
 
         // Step 3: Text-to-Speech
         console.log('🔊 Synthesizing response audio...');
@@ -313,7 +334,7 @@ app.post('/api/voice/process', async (req, res) => {
 });
 
 // Create a booking
-app.post('/api/bookings', async (req, res) => {
+app.post('/api/bookings', apiLimiter, async (req, res) => {
     try {
         const { name, email, date, time, service, notes } = req.body;
 
@@ -324,14 +345,15 @@ app.post('/api/bookings', async (req, res) => {
             });
         }
 
+        // Collision-safe ID: timestamp + random component
         const booking = {
-            id: `BK-${Date.now().toString(36).toUpperCase()}`,
-            name,
-            email: email || '',
-            date,
-            time,
-            service: service || 'General Appointment',
-            notes: notes || '',
+            id: `BK-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+            name: String(name),
+            email: email ? String(email) : '',
+            date: String(date),
+            time: String(time),
+            service: service ? String(service) : 'General Appointment',
+            notes: notes ? String(notes) : '',
             createdAt: new Date().toISOString(),
             status: 'confirmed'
         };
@@ -362,7 +384,7 @@ app.post('/api/bookings', async (req, res) => {
 });
 
 // List all bookings
-app.get('/api/bookings', (req, res) => {
+app.get('/api/bookings', apiLimiter, (req, res) => {
     res.json({ success: true, bookings });
 });
 

@@ -444,6 +444,7 @@ function prefillBookingForm(text) {
     const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
     const targetDay = days.indexOf(dayName);
     if (targetDay !== -1) {
+      // If today matches the named day, keep today; otherwise find next occurrence
       const diff = (targetDay - today.getDay() + 7) % 7 || 7;
       const target = new Date(today);
       target.setDate(today.getDate() + diff);
@@ -460,11 +461,14 @@ function prefillBookingForm(text) {
   if (timeMatch) {
     const raw = timeMatch[1].replace(/\s/g, '').toLowerCase();
     const isPm = raw.endsWith('pm');
+    const isAm = raw.endsWith('am');
     const parts = raw.replace(/am|pm/, '').split(':');
     let h = parseInt(parts[0], 10);
     const m = parts[1] ? parseInt(parts[1], 10) : 0;
+    // Validate 12-hour range
+    if (isNaN(h) || h < 1 || h > 12) return;
     if (isPm && h !== 12) h += 12;
-    if (!isPm && h === 12) h = 0;
+    if (isAm && h === 12) h = 0;
     document.getElementById('b-time').value = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   }
 }
