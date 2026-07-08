@@ -23,7 +23,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.raw({ type: 'audio/*', limit: '50mb' }));
 
-// ─── Rate Limiting ────────────────────────────────────────────────────────────
+// ─── Rate Limiting ────────────────────────────────────────────────────────
 const apiLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 30,
@@ -209,7 +209,7 @@ async function getGeminiResponse(userMessage, conversationHistory = []) {
     return result.response.text();
 }
 
-// ─── Routes ──────────────────────────────────────────────────────────────────
+// ─── Routes ──────────────────────────────────────────────────────────
 
 app.get('/', apiLimiter, (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
