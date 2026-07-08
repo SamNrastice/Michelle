@@ -444,8 +444,8 @@ function prefillBookingForm(text) {
     const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
     const targetDay = days.indexOf(dayName);
     if (targetDay !== -1) {
-      // If today matches the named day, keep today; otherwise find next occurrence
-      const diff = (targetDay - today.getDay() + 7) % 7 || 7;
+      // If today matches the named day, diff is 0 (book today); otherwise find next occurrence
+      const diff = (targetDay - today.getDay() + 7) % 7;
       const target = new Date(today);
       target.setDate(today.getDate() + diff);
       document.getElementById('b-date').value = target.toISOString().split('T')[0];
@@ -466,7 +466,10 @@ function prefillBookingForm(text) {
     let h = parseInt(parts[0], 10);
     const m = parts[1] ? parseInt(parts[1], 10) : 0;
     // Validate 12-hour range
-    if (isNaN(h) || h < 1 || h > 12) return;
+    if (isNaN(h) || h < 1 || h > 12) {
+      showToast('⚠️ Could not parse the time from your message — please set it manually.');
+      return;
+    }
     if (isPm && h !== 12) h += 12;
     if (isAm && h === 12) h = 0;
     document.getElementById('b-time').value = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;

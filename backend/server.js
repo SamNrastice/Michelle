@@ -2,6 +2,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const path = require('path');
+const crypto = require('crypto');
 const sdk = require('microsoft-cognitiveservices-speech-sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const nodemailer = require('nodemailer');
@@ -229,12 +230,14 @@ app.get('/api/health', apiLimiter, (req, res) => {
 // Speech-to-Text: receives raw audio, returns recognized text
 app.post('/api/speech/recognize', voiceLimiter, async (req, res) => {
     try {
-        const audioBuffer = req.body;
+        const rawBody = req.body;
 
-        if (!Buffer.isBuffer(audioBuffer) || audioBuffer.length === 0) {
+        if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
             return res.status(400).json({ success: false, error: 'No audio data received' });
         }
 
+        // Ensure we always work with a Buffer
+        const audioBuffer = Buffer.from(rawBody);
         console.log(`🎙️  Recognizing audio (${audioBuffer.length} bytes)...`);
         const result = await recognizeSpeechFromBuffer(audioBuffer);
         console.log(result.success ? `✅ Recognized: "${result.text}"` : '❌ No speech recognized');
@@ -254,7 +257,7 @@ app.post('/api/speech/synthesize', apiLimiter, async (req, res) => {
             return res.status(400).json({ success: false, error: 'No text provided' });
         }
 
-        console.log(`🔊 Synthesizing: "${text.substring(0, LOG_PREVIEW_LENGTH)}..."`);
+        console.log(`🔊 Synthesizing: "${text.length > LOG_PREVIEW_LENGTH ? text.substring(0, LOG_PREVIEW_LENGTH) + '...' : text}"`);
         const audioBuffer = await synthesizeSpeechToBuffer(text);
 
         res.set('Content-Type', 'audio/mpeg');
@@ -277,7 +280,7 @@ app.post('/api/chat', apiLimiter, async (req, res) => {
 
         console.log(`💬 Chat message: "${message.substring(0, LOG_PREVIEW_LENGTH)}"`);
         const response = await getGeminiResponse(message, Array.isArray(history) ? history : []);
-        console.log(`🤖 Michelle: "${response.substring(0, LOG_PREVIEW_LENGTH)}..."`);
+        console.log(`🤖 Michelle: "${response.length > LOG_PREVIEW_LENGTH ? response.substring(0, LOG_PREVIEW_LENGTH) + '...' : response}"`);
 
         res.json({ success: true, response });
     } catch (error) {
@@ -289,11 +292,14 @@ app.post('/api/chat', apiLimiter, async (req, res) => {
 // Full voice pipeline: audio in → STT → Gemini → TTS → audio out
 app.post('/api/voice/process', voiceLimiter, async (req, res) => {
     try {
-        const audioBuffer = req.body;
+        const rawBody = req.body;
 
-        if (!Buffer.isBuffer(audioBuffer) || audioBuffer.length === 0) {
+        if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
             return res.status(400).json({ success: false, error: 'No audio data received' });
         }
+
+        // Ensure we always work with a Buffer
+        const audioBuffer = Buffer.from(rawBody);
 
         // Step 1: Speech-to-Text
         console.log('🎙️  Voice pipeline: recognizing speech...');
@@ -313,7 +319,7 @@ app.post('/api/voice/process', voiceLimiter, async (req, res) => {
         // Step 2: Gemini AI response
         console.log('🤖 Getting Gemini response...');
         const aiResponse = await getGeminiResponse(transcript);
-        console.log(`🤖 Michelle: "${aiResponse.substring(0, LOG_PREVIEW_LENGTH)}..."`);
+        console.log(`🤖 Michelle: "${aiResponse.length > LOG_PREVIEW_LENGTH ? aiResponse.substring(0, LOG_PREVIEW_LENGTH) + '...' : aiResponse}"`);
 
         // Step 3: Text-to-Speech
         console.log('🔊 Synthesizing response audio...');
@@ -345,9 +351,9 @@ app.post('/api/bookings', apiLimiter, async (req, res) => {
             });
         }
 
-        // Collision-safe ID: timestamp + random component
+        // Collision-safe ID using cryptographically secure random bytes
         const booking = {
-            id: `BK-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+            id: `BK-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
             name: String(name),
             email: email ? String(email) : '',
             date: String(date),
