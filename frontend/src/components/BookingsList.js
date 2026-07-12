@@ -32,8 +32,33 @@ function BookingsList({ bookings: initialBookings, onRefresh }) {
 
   // Load bookings on mount
   useEffect(() => {
-    fetchBookings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_URL}/api/bookings`);
+        const data = await res.json();
+        if (!cancelled) {
+          if (data.success) {
+            setBookings(data.bookings);
+            if (onRefresh) onRefresh(data.bookings);
+          } else {
+            setError(data.error || 'Failed to load bookings.');
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError('Network error — please check that the backend is running.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  // onRefresh intentionally omitted — callers must memoize if needed
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
