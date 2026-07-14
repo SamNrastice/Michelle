@@ -1,5 +1,6 @@
 // Michelle Booking Avatar - Backend Server with Azure Speech + Gemini AI
 const express = require('express');
+const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const crypto = require('crypto');
@@ -13,6 +14,9 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Enable CORS
+app.use(cors());
 
 // Log preview length for console messages
 const LOG_PREVIEW_LENGTH = 80;
