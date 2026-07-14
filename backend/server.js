@@ -199,12 +199,25 @@ async function getGeminiResponse(userMessage, conversationHistory = []) {
         systemInstruction: MICHELLE_SYSTEM_PROMPT
     });
 
-    const history = conversationHistory.map((msg) => ({
-        role: msg.role,
-        parts: [{ text: msg.content }]
-    }));
+    // Filter and clean history - ONLY include valid user/model pairs
+    const cleanedHistory = (Array.isArray(conversationHistory) ? conversationHistory : [])
+        .filter(msg => msg && msg.role && msg.content)
+        .map(msg => ({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: String(msg.content) }]
+        }));
 
-    const chat = model.startChat({ history });
+    // Ensure alternating user/model pattern
+    const validHistory = [];
+    let lastRole = null;
+    for (const msg of cleanedHistory) {
+        if (msg.role !== lastRole) {
+            validHistory.push(msg);
+            lastRole = msg.role;
+        }
+    }
+
+    const chat = model.startChat({ history: validHistory });
     const result = await chat.sendMessage(userMessage);
     return result.response.text();
 }
