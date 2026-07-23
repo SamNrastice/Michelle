@@ -22,6 +22,7 @@ app.use(cors());
 const LOG_PREVIEW_LENGTH = 80;
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.urlencoded({ extended: true }));
@@ -409,6 +410,15 @@ app.post('/api/bookings', apiLimiter, async (req, res) => {
 // List all bookings
 app.get('/api/bookings', apiLimiter, (req, res) => {
     res.json({ success: true, bookings });
+});
+
+// Get a specific booking by ID
+app.get('/api/bookings/:id', apiLimiter, (req, res) => {
+    const booking = bookings.find((b) => b.id === req.params.id);
+    if (!booking) {
+        return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    res.json({ success: true, booking });
 });
 
 // Error handling middleware
